@@ -8,6 +8,7 @@
       <router-link
         v-for="tag in visitedViews"
         :key="tag.path"
+        :data-path="tag.path"
         :class="isActive(tag) ? 'active' : ''"
         :to="{ path: tag.path, query: tag.query, fullPath: tag.fullPath }"
         class="tags-view__item"
@@ -64,8 +65,7 @@ import {
   nextTick,
   ref,
   watch,
-  onMounted,
-  ComponentInternalInstance
+  onMounted
 } from 'vue';
 
 import path from 'path-browserify';
@@ -80,7 +80,7 @@ import useStore from '@/store';
 
 const { tagsView, permission } = useStore();
 
-const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+const { proxy } = getCurrentInstance() as any;
 const router = useRouter();
 const route = useRoute();
 
@@ -108,7 +108,7 @@ watch(
 
 watch(visible, value => {
   if (value) {
-    document.body.addEventListener('click', closeMenu);
+    document.body.addEventListener('click', closeMenu, {passive:true});
   } else {
     document.body.removeEventListener('click', closeMenu);
   }
@@ -156,21 +156,17 @@ function addTags() {
 }
 
 function moveToCurrentTag() {
-  const tags = getCurrentInstance()?.refs.tag as any[];
   nextTick(() => {
-    if (tags === null || tags === undefined || !Array.isArray(tags)) {
-      return;
-    }
-    for (const tag of tags) {
-      if ((tag.to as TagView).path === route.path) {
-        (scrollPaneRef.value as any).value.moveToTarget(tag);
+    for (const r of visitedViews.value) {
+      if (r.path === route.path) {
+        scrollPaneRef.value.moveToTarget(r);
         // when query is different then update
-        if ((tag.to as TagView).fullPath !== route.fullPath) {
+        if (r.fullPath !== route.fullPath) {
           tagsView.updateVisitedView(route);
         }
       }
     }
-  });
+  })
 }
 
 function isActive(tag: TagView) {
@@ -258,16 +254,14 @@ function closeRightTags() {
 }
 
 function closeOtherTags() {
+  router.push(selectedTag.value)
   tagsView.delOtherViews(selectedTag.value).then(() => {
     moveToCurrentTag();
   });
 }
 
 function closeAllTags(view: TagView) {
-  tagsView.delRightViews(selectedTag.value).then((res: any) => {
-    if (affixTags.value.some((tag: any) => tag.path === route.path)) {
-      return;
-    }
+  tagsView.delAllViews().then((res: any) => {
     toLastView(res.visitedViews, view);
   });
 }
